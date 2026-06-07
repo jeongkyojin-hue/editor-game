@@ -1,0 +1,943 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>나는 편집기자다</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body {
+    height: 100%;
+    background: #05060d;
+    overflow: hidden;
+    font-family: "Malgun Gothic", "맑은 고딕", "Apple SD Gothic Neo",
+                 "Noto Sans KR", "Nanum Gothic", sans-serif;
+  }
+  #wrap {
+    position: relative;
+    width: 100vw;
+    height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  canvas {
+    display: block;
+    cursor: none;
+    touch-action: none;
+  }
+  /* 상단 HUD */
+  #hud {
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    display: flex;
+    justify-content: space-between;
+    padding: 14px 22px;
+    color: #cfe9ff;
+    font-size: 16px;
+    letter-spacing: 0.5px;
+    pointer-events: none;
+    text-shadow: 0 0 8px rgba(80,180,255,0.55), 0 1px 3px rgba(0,0,0,0.9);
+  }
+  #hud .item b { color: #ffd24a; font-weight: 700; text-shadow: 0 0 10px rgba(255,210,74,0.65); }
+  #best { color: #7fd1ff; }
+
+  /* 게임오버 / 시작 패널 */
+  #overlay {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background: radial-gradient(circle at 50% 45%, rgba(10,12,28,0.55), rgba(0,0,0,0.82));
+    color: #fff;
+    text-align: center;
+    padding: 24px;
+    backdrop-filter: blur(3px);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.6s ease;
+  }
+  #overlay.show { opacity: 1; pointer-events: auto; }
+  #overlay h1 {
+    font-size: 36px;
+    font-weight: 800;
+    margin-bottom: 8px;
+    letter-spacing: 2px;
+    color: #fff;
+    text-shadow:
+      0 0 8px rgba(127,209,255,0.9),
+      0 0 22px rgba(127,209,255,0.6),
+      0 0 44px rgba(80,120,255,0.5);
+  }
+  #overlay .sub { color: #aebbd6; font-size: 15px; margin-bottom: 24px; line-height: 1.6; }
+  #overlay .result { font-size: 22px; margin-bottom: 6px; }
+  #overlay .result .word {
+    color: #ff5d6c; font-weight: 800;
+    text-shadow: 0 0 12px rgba(255,93,108,0.85), 0 0 26px rgba(255,93,108,0.5);
+  }
+  #overlay .result .time {
+    color: #ffd24a; font-weight: 800;
+    text-shadow: 0 0 12px rgba(255,210,74,0.8);
+  }
+  #overlay .bestline { color: #7fd1ff; font-size: 16px; margin-bottom: 26px; }
+  #overlay .newrec {
+    color: #6cff9e; font-weight: 800;
+    text-shadow: 0 0 14px rgba(108,255,158,0.8);
+  }
+
+  /* 난이도 선택 */
+  .picklabel {
+    color: #cfe9ff; font-size: 16px; margin-bottom: 18px; letter-spacing: 1px;
+    text-shadow: 0 0 10px rgba(80,180,255,0.5);
+  }
+  #diffButtons {
+    display: flex;
+    gap: 22px;
+    justify-content: center;
+    align-items: stretch;
+    flex-wrap: wrap;
+  }
+  .diffBtn {
+    pointer-events: auto;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    border: 2px solid;
+    background: rgba(255,255,255,0.03);
+    border-radius: 20px;
+    padding: 24px 38px;
+    min-width: 160px;
+    cursor: pointer;
+    font-family: inherit;
+    color: #fff;
+    transition: transform .12s ease, box-shadow .2s ease, background .2s ease;
+  }
+  .diffBtn .dname { font-size: 26px; font-weight: 800; letter-spacing: 1px; }
+  .diffBtn .ddesc { font-size: 13px; font-weight: 600; opacity: 0.9; }
+  .diffBtn:hover { transform: translateY(-5px) scale(1.05); }
+  .diffBtn:active { transform: translateY(-1px) scale(1.0); }
+
+  .diffBtn.easy {
+    color: #6cff9e; border-color: #6cff9e;
+    box-shadow: 0 0 18px rgba(108,255,158,.35), inset 0 0 18px rgba(108,255,158,.12);
+  }
+  .diffBtn.easy:hover {
+    background: rgba(108,255,158,.14);
+    box-shadow: 0 0 36px rgba(108,255,158,.75), inset 0 0 24px rgba(108,255,158,.22);
+  }
+  .diffBtn.normal {
+    color: #4ad6ff; border-color: #4ad6ff;
+    box-shadow: 0 0 18px rgba(74,214,255,.35), inset 0 0 18px rgba(74,214,255,.12);
+  }
+  .diffBtn.normal:hover {
+    background: rgba(74,214,255,.14);
+    box-shadow: 0 0 36px rgba(74,214,255,.75), inset 0 0 24px rgba(74,214,255,.22);
+  }
+  .diffBtn.hard {
+    color: #ff5d6c; border-color: #ff5d6c;
+    box-shadow: 0 0 18px rgba(255,93,108,.35), inset 0 0 18px rgba(255,93,108,.12);
+  }
+  .diffBtn.hard:hover {
+    background: rgba(255,93,108,.14);
+    box-shadow: 0 0 36px rgba(255,93,108,.75), inset 0 0 24px rgba(255,93,108,.22);
+  }
+
+  .hint { margin-top: 22px; color: #6f7da0; font-size: 13px; }
+
+  /* 무적 발동 메시지 (정중앙, 무지개색) */
+  #invMsg {
+    position: absolute;
+    top: 42%; left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 92px;
+    font-weight: 900;
+    letter-spacing: 5px;
+    color: #ff0040;
+    text-shadow: 0 0 20px #ff0040, 0 0 52px #ff0040;
+    pointer-events: none;
+    display: none;
+    z-index: 50;
+    animation: invHue 1.2s linear infinite;
+  }
+  #invMsg.show { display: block; }
+  #invMsg.ending { animation: invHue 1.2s linear infinite, invBlink 0.16s steps(1) infinite; }
+  @keyframes invHue { to { filter: hue-rotate(360deg); } }
+  @keyframes invBlink { 0% { opacity: 1; } 50% { opacity: 0.12; } 100% { opacity: 1; } }
+
+  /* 사운드 버튼 (배경음악 / 전체 음소거) */
+  #muteBtn, #bgmBtn {
+    position: absolute;
+    bottom: 16px;
+    z-index: 60;
+    pointer-events: auto;
+    width: 48px; height: 48px;
+    border-radius: 50%;
+    border: 2px solid rgba(127,209,255,0.5);
+    background: rgba(10,16,30,0.7);
+    color: #cfe9ff;
+    font-size: 21px;
+    line-height: 1;
+    cursor: pointer;
+    box-shadow: 0 0 14px rgba(80,180,255,0.35);
+    transition: transform .1s ease, box-shadow .2s ease, opacity .2s ease;
+  }
+  #muteBtn { right: 16px; }
+  #bgmBtn  { right: 74px; }
+  #muteBtn:hover, #bgmBtn:hover { transform: scale(1.08); box-shadow: 0 0 22px rgba(80,180,255,0.6); }
+  #muteBtn:active, #bgmBtn:active { transform: scale(1.0); }
+  #bgmBtn.off { opacity: 0.4; border-color: rgba(127,209,255,0.25); box-shadow: none; }
+</style>
+</head>
+<body>
+<div id="wrap">
+  <canvas id="game"></canvas>
+  <div id="invMsg">무적!</div>
+  <button id="bgmBtn" title="배경음악 켜기/끄기" aria-label="배경음악 켜기/끄기">🎵</button>
+  <button id="muteBtn" title="전체 소리 켜기/끄기" aria-label="전체 소리 켜기/끄기">🔊</button>
+  <div id="hud">
+    <div class="item">난이도 <b id="diffVal">보통</b></div>
+    <div class="item">경과 시간 <b id="timeVal">0.0</b> 초</div>
+    <div class="item">떠다니는 단어 <b id="countVal">0</b> 개</div>
+    <div class="item" id="best">최고 기록 <b id="bestVal">0.0</b> 초</div>
+  </div>
+  <div id="overlay" class="show">
+    <h1>나는 편집기자다</h1>
+    <p class="sub">
+      편집기자가 절대 마주쳐선 안 되는 실수와 상황들을 피하세요.<br>
+      마우스를 따라 동그라미가 움직입니다. 단어에 닿으면 끝!<br>
+      <span style="color:#6cff9e">휴가 · 대휴 · 건강검진</span> 을 먹으면 잠시 무적!
+    </p>
+    <div id="resultBox" style="display:none;">
+      <div class="result"><span class="word" id="hitWord"></span>에 걸렸습니다!</div>
+      <div class="result"><span class="time" id="survTime"></span>초 버텼습니다</div>
+      <div class="bestline" id="bestLine"></div>
+    </div>
+    <div class="picklabel">난이도를 선택하세요</div>
+    <div id="diffButtons">
+      <button class="diffBtn easy" data-diff="easy">
+        <span class="dname">쉬움</span>
+        <span class="ddesc">느긋하게</span>
+      </button>
+      <button class="diffBtn normal" data-diff="normal">
+        <span class="dname">보통</span>
+        <span class="ddesc">평범한 마감</span>
+      </button>
+      <button class="diffBtn hard" data-diff="hard">
+        <span class="dname">어려움</span>
+        <span class="ddesc">지옥의 마감</span>
+      </button>
+    </div>
+    <div class="hint">마우스(또는 터치)로 편집기자를 움직이세요</div>
+  </div>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  const canvas = document.getElementById("game");
+  const ctx = canvas.getContext("2d");
+
+  const els = {
+    diffVal: document.getElementById("diffVal"),
+    time: document.getElementById("timeVal"),
+    count: document.getElementById("countVal"),
+    best: document.getElementById("bestVal"),
+    overlay: document.getElementById("overlay"),
+    resultBox: document.getElementById("resultBox"),
+    hitWord: document.getElementById("hitWord"),
+    survTime: document.getElementById("survTime"),
+    bestLine: document.getElementById("bestLine"),
+    invMsg: document.getElementById("invMsg"),
+    muteBtn: document.getElementById("muteBtn"),
+    bgmBtn: document.getElementById("bgmBtn"),
+  };
+
+  // ===== 사운드 (Web Audio API, 외부 음원 파일 없이 코드로 생성) =====
+  let audioCtx = null;
+  let masterGain = null;  // 전체 볼륨/음소거 (효과음 + 배경음악)
+  let bgmGain = null;     // 배경음악 전용 게인 (masterGain 아래)
+  let muted = false;      // 전체 음소거 (기본: 켜짐)
+  let bgmOn = true;       // 배경음악만 따로 끄기
+  const BGM_VOL = 0.7;    // 배경음악 볼륨
+
+  // AudioContext 확보 + (정지 상태면) resume. 사용자 제스처 안에서 호출해야 잠금 해제됨.
+  function getCtx() {
+    try {
+      if (!audioCtx) {
+        const AC = window.AudioContext || window.webkitAudioContext;
+        if (!AC) return null;
+        audioCtx = new AC();
+        masterGain = audioCtx.createGain();
+        masterGain.gain.value = muted ? 0 : 0.9;
+        masterGain.connect(audioCtx.destination);
+        // 배경음악 전용 게인 (효과음은 기존처럼 masterGain에 직접 연결 — 변경 없음)
+        bgmGain = audioCtx.createGain();
+        bgmGain.gain.value = bgmOn ? BGM_VOL : 0;
+        bgmGain.connect(masterGain);
+      }
+      if (audioCtx.state === "suspended") audioCtx.resume();
+    } catch (e) {
+      return null;
+    }
+    return audioCtx;
+  }
+
+  // 단일 톤(엔벨로프). freqEnd가 있으면 주파수 스윕.
+  function tone(freq, freqEnd, type, start, dur, vol) {
+    const c = getCtx();
+    if (!c) return;
+    const t0 = c.currentTime + start;
+    const osc = c.createOscillator();
+    const g = c.createGain();
+    osc.type = type;
+    osc.frequency.setValueAtTime(freq, t0);
+    if (freqEnd) osc.frequency.exponentialRampToValueAtTime(freqEnd, t0 + dur);
+    g.gain.setValueAtTime(0.0001, t0);
+    g.gain.linearRampToValueAtTime(vol, t0 + 0.008);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+    osc.connect(g).connect(masterGain);
+    osc.start(t0);
+    osc.stop(t0 + dur + 0.03);
+  }
+
+  // 게임 오버: 낮고 둔탁한 실패음 (로우패스 + 하강 톱니파)
+  function playFail() {
+    if (muted) return;
+    const c = getCtx();
+    if (!c) return;
+    const t0 = c.currentTime;
+    const osc = c.createOscillator();
+    const g = c.createGain();
+    const f = c.createBiquadFilter();
+    f.type = "lowpass";
+    f.frequency.setValueAtTime(700, t0);
+    f.frequency.exponentialRampToValueAtTime(160, t0 + 0.5);
+    osc.type = "sawtooth";
+    osc.frequency.setValueAtTime(170, t0);
+    osc.frequency.exponentialRampToValueAtTime(48, t0 + 0.55);
+    g.gain.setValueAtTime(0.0001, t0);
+    g.gain.linearRampToValueAtTime(0.55, t0 + 0.02);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.6);
+    osc.connect(f).connect(g).connect(masterGain);
+    osc.start(t0);
+    osc.stop(t0 + 0.65);
+  }
+
+  // 좋은 단어 먹을 때: 밝고 경쾌한 "딩-"
+  function playDing() {
+    if (muted) return;
+    tone(880, null, "triangle", 0, 0.16, 0.30);       // A5
+    tone(1318.5, null, "triangle", 0.06, 0.30, 0.26); // E6
+  }
+
+  // 무적 발동: 화려하게 상승하는 효과음 (아르페지오 + 스윕)
+  function playPowerUp() {
+    if (muted) return;
+    const notes = [392.0, 523.25, 659.25, 783.99, 1046.5]; // G4 C5 E5 G5 C6
+    for (let i = 0; i < notes.length; i++) tone(notes[i], null, "square", i * 0.07, 0.22, 0.20);
+    tone(300, 1500, "sawtooth", 0, 0.42, 0.10); // 상승 스윕
+  }
+
+  function toggleMute() {
+    muted = !muted;
+    getCtx();
+    if (masterGain) masterGain.gain.value = muted ? 0 : 0.9;
+    els.muteBtn.textContent = muted ? "🔇" : "🔊";
+  }
+
+  function toggleBgm() {
+    bgmOn = !bgmOn;
+    getCtx();
+    if (bgmGain) bgmGain.gain.setValueAtTime(bgmOn ? BGM_VOL : 0, audioCtx.currentTime);
+    els.bgmBtn.classList.toggle("off", !bgmOn);
+  }
+
+  // ----- 배경음악 (아주 단순: setInterval로 0.4초마다 음 하나씩 반복) -----
+  const BGM_NOTES = [220.00, 277.18, 329.63, 440.00, 329.63, 277.18]; // A3 C#4 E4 A4 …
+  let bgmTimer = null;
+  let bgmIdx = 0;
+
+  function bgmBeep() {
+    const c = getCtx();
+    if (!c) return;
+    const freq = BGM_NOTES[bgmIdx % BGM_NOTES.length];
+    bgmIdx++;
+    const t = c.currentTime;
+    const osc = c.createOscillator();
+    const g = c.createGain();
+    osc.type = "square";
+    osc.frequency.setValueAtTime(freq, t);
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.linearRampToValueAtTime(0.30, t + 0.02);   // 효과음과 비슷하게 크게
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.35);
+    osc.connect(g).connect(bgmGain || masterGain);
+    osc.start(t);
+    osc.stop(t + 0.4);
+  }
+
+  function startBgm() {
+    console.log("[BGM] startBgm() 호출됨 — 0.4초마다 음 재생 시작");
+    getCtx();
+    if (bgmTimer) clearInterval(bgmTimer);
+    bgmIdx = 0;
+    bgmBeep();                            // 즉시 첫 음
+    bgmTimer = setInterval(bgmBeep, 400); // 0.4초마다 반복
+  }
+
+  function stopBgm() {
+    if (bgmTimer) { clearInterval(bgmTimer); bgmTimer = null; }
+  }
+
+  // 위험 단어 풀
+  const DANGER_WORDS = [
+    "오타", "비문", "오탈자", "마감 펑크", "데스크 호출",
+    "낚시성 제목", "사실관계 오류", "중복 기사", "깨진 사진",
+    "정정보도", "악플", "제목 어뷰징", "맞춤법 틀림", "야근 확정",
+    "악성 민원 전화",
+  ];
+
+  // 좋은 단어(무적 발동) — 글자만 표시(알약 박스 안)
+  const GOOD_WORDS = ["휴가", "대휴", "건강검진"];
+
+  // 난이도 설정
+  const DIFFS = {
+    easy:   { name: "쉬움",   speedMul: 0.6, spawnMul: 1.7,  startWords: 2, key: "editor_game_best_easy" },
+    normal: { name: "보통",   speedMul: 1.0, spawnMul: 1.0,  startWords: 4, key: "editor_game_best_normal" },
+    hard:   { name: "어려움", speedMul: 1.7, spawnMul: 0.55, startWords: 7, key: "editor_game_best_hard" },
+  };
+  let curDiff = "normal";
+
+  function bestKey() { return DIFFS[curDiff].key; }
+  function loadBest() {
+    const v = parseFloat(localStorage.getItem(bestKey()));
+    return isFinite(v) ? v : 0;
+  }
+  function saveBest(v) {
+    try { localStorage.setItem(bestKey(), String(v)); } catch (e) {}
+  }
+
+  let W = 0, H = 0, DPR = 1;
+  let bgGrad = null;
+  const FONT_FAMILY = '"Malgun Gothic","맑은 고딕","Apple SD Gothic Neo","Noto Sans KR","Nanum Gothic",sans-serif';
+
+  function resize() {
+    DPR = Math.min(window.devicePixelRatio || 1, 2);
+    W = window.innerWidth;
+    H = window.innerHeight;
+    canvas.style.width = W + "px";
+    canvas.style.height = H + "px";
+    canvas.width = Math.floor(W * DPR);
+    canvas.height = Math.floor(H * DPR);
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+    bgGrad = ctx.createRadialGradient(W * 0.5, H * 0.42, 0, W * 0.5, H * 0.5, Math.max(W, H) * 0.75);
+    bgGrad.addColorStop(0, "#10142b");
+    bgGrad.addColorStop(0.55, "#080a16");
+    bgGrad.addColorStop(1, "#02030a");
+    initDust();
+  }
+  window.addEventListener("resize", resize);
+
+  // 배경 입자
+  let dust = [];
+  function initDust() {
+    const target = Math.round((W * H) / 26000);
+    dust = [];
+    for (let i = 0; i < target; i++) {
+      dust.push({
+        x: Math.random() * W,
+        y: Math.random() * H,
+        r: 0.6 + Math.random() * 1.8,
+        vx: (Math.random() - 0.5) * 8,
+        vy: 6 + Math.random() * 14,
+        a: 0.15 + Math.random() * 0.45,
+        hue: Math.random() < 0.5 ? "180,220,255" : "150,170,255",
+        tw: Math.random() * Math.PI * 2,
+      });
+    }
+  }
+
+  // 플레이어
+  const player = { x: 0, y: 0, r: 9, tx: 0, ty: 0 };
+  let trail = [];
+
+  function setTarget(x, y) { player.tx = x; player.ty = y; }
+  canvas.addEventListener("mousemove", (e) => {
+    const rect = canvas.getBoundingClientRect();
+    setTarget(e.clientX - rect.left, e.clientY - rect.top);
+  });
+  canvas.addEventListener("touchmove", (e) => {
+    e.preventDefault();
+    const t = e.touches[0];
+    const rect = canvas.getBoundingClientRect();
+    setTarget(t.clientX - rect.left, t.clientY - rect.top);
+  }, { passive: false });
+  canvas.addEventListener("touchstart", (e) => {
+    const t = e.touches[0];
+    const rect = canvas.getBoundingClientRect();
+    setTarget(t.clientX - rect.left, t.clientY - rect.top);
+    player.x = player.tx; player.y = player.ty;
+    trail = [];
+  }, { passive: false });
+
+  // 위험 단어
+  let words = [];
+  const PALETTE = ["#ff5d6c", "#ff8a4a", "#ffd24a", "#9b7bff", "#4ad6ff", "#6cff9e", "#ff7be0"];
+
+  function spawnWord() {
+    const text = DANGER_WORDS[(Math.random() * DANGER_WORDS.length) | 0];
+    const fontSize = 18 + Math.random() * 16;
+    ctx.font = "700 " + fontSize + "px " + FONT_FAMILY;
+    const w = ctx.measureText(text).width;
+    const h = fontSize;
+    const pad = 10;
+    let x, y;
+    const edge = (Math.random() * 4) | 0;
+    if (edge === 0) { x = Math.random() * W; y = -h; }
+    else if (edge === 1) { x = W + w; y = Math.random() * H; }
+    else if (edge === 2) { x = Math.random() * W; y = H + h; }
+    else { x = -w; y = Math.random() * H; }
+
+    const speed = (40 + Math.random() * 70) * DIFFS[curDiff].speedMul;
+    const ang = Math.random() * Math.PI * 2;
+    words.push({
+      text, x, y,
+      vx: Math.cos(ang) * speed,
+      vy: Math.sin(ang) * speed,
+      w: w + pad * 2,
+      h: h + pad,
+      fontSize,
+      color: PALETTE[(Math.random() * PALETTE.length) | 0],
+    });
+  }
+
+  // 좋은 단어 (알약 박스)
+  let goodWords = [];
+  function spawnGoodWord() {
+    const text = GOOD_WORDS[(Math.random() * GOOD_WORDS.length) | 0];
+    const fontSize = 22;
+    ctx.font = "800 " + fontSize + "px " + FONT_FAMILY;
+    const tw = ctx.measureText(text).width;
+    const padX = 22, padY = 13;
+    const w = tw + padX * 2;
+    const h = fontSize + padY * 2;
+    let x, y;
+    const edge = (Math.random() * 4) | 0;
+    if (edge === 0) { x = Math.random() * W; y = -h; }
+    else if (edge === 1) { x = W + w; y = Math.random() * H; }
+    else if (edge === 2) { x = Math.random() * W; y = H + h; }
+    else { x = -w; y = Math.random() * H; }
+    const speed = 35 + Math.random() * 30;
+    const ang = Math.random() * Math.PI * 2;
+    goodWords.push({
+      text, x, y,
+      vx: Math.cos(ang) * speed,
+      vy: Math.sin(ang) * speed,
+      w, h, fontSize,
+    });
+  }
+
+  // 파편 파티클
+  let particles = [];
+  function burst(x, y, color, amount, power) {
+    for (let i = 0; i < amount; i++) {
+      const ang = Math.random() * Math.PI * 2;
+      const spd = (0.3 + Math.random()) * power;
+      const life = 0.5 + Math.random() * 0.8;
+      particles.push({
+        x, y,
+        vx: Math.cos(ang) * spd,
+        vy: Math.sin(ang) * spd,
+        life, maxLife: life,
+        size: 1.5 + Math.random() * 3,
+        color,
+      });
+    }
+  }
+
+  function hexToRgb(hex) {
+    const n = parseInt(hex.slice(1), 16);
+    return (n >> 16) + "," + ((n >> 8) & 255) + "," + (n & 255);
+  }
+
+  // 둥근 사각형(알약) 경로
+  function roundRect(x, y, w, h, r) {
+    r = Math.min(r, w / 2, h / 2);
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.arcTo(x + w, y, x + w, y + h, r);
+    ctx.arcTo(x + w, y + h, x, y + h, r);
+    ctx.arcTo(x, y + h, x, y, r);
+    ctx.arcTo(x, y, x + w, y, r);
+    ctx.closePath();
+  }
+
+  // 게임 상태
+  let state = "menu";
+  let elapsed = 0;
+  let lastTime = performance.now();
+  let spawnTimer = 0;
+  let popTimer = 0;
+  let goodSpawnTimer = 0;
+  let shake = 0;
+
+  // 무적 상태 (좋은 단어로 발동, 3초 지속)
+  const INVULN_DUR = 3;
+  let invActive = false;
+  let invEndsAt = 0;
+  function triggerInvuln() {
+    invActive = true;
+    invEndsAt = elapsed + INVULN_DUR;
+    burst(player.x, player.y, "#ffffff", 34, 280);
+    playPowerUp(); // 무적 발동음 (상승)
+  }
+
+  let best = loadBest();
+  els.best.textContent = best.toFixed(1);
+
+  function reset() {
+    words = [];
+    goodWords = [];
+    particles = [];
+    trail = [];
+    elapsed = 0;
+    spawnTimer = 0;
+    popTimer = 0;
+    goodSpawnTimer = 0;
+    shake = 0;
+    invActive = false;
+    invEndsAt = 0;
+    els.invMsg.classList.remove("show", "ending");
+    player.x = player.tx = W / 2;
+    player.y = player.ty = H / 2;
+    const startN = DIFFS[curDiff].startWords;
+    for (let i = 0; i < startN; i++) spawnWord();
+    spawnGoodWord(); // 시작하자마자 좋은 단어 하나 등장
+  }
+
+  function start(diff) {
+    if (diff && DIFFS[diff]) curDiff = diff;
+    getCtx(); // ★ 사용자 클릭(제스처) 안에서 오디오 활성화/resume
+    if (audioCtx && audioCtx.resume) audioCtx.resume();
+    console.log("[BGM] start() 게임 시작 — 난이도:", curDiff, "/ audioCtx.state:", audioCtx && audioCtx.state);
+    startBgm(); // ★ 배경음악 시작 (효과음과 동일한 AudioContext 사용)
+    best = loadBest();
+    els.best.textContent = best.toFixed(1);
+    els.diffVal.textContent = DIFFS[curDiff].name;
+    reset();
+    state = "playing";
+    els.overlay.classList.remove("show");
+  }
+
+  function gameOver(hitText) {
+    state = "dead";
+    shake = 16;
+    playFail(); // ★ 실패 효과음
+    fadeOutBgm(); // ★ 배경음악 잦아들며 정지
+    invActive = false;
+    els.invMsg.classList.remove("show", "ending");
+    burst(player.x, player.y, "#7fd1ff", 36, 320);
+
+    let isNew = false;
+    if (elapsed > best) { best = elapsed; saveBest(best); isNew = true; }
+    els.best.textContent = best.toFixed(1);
+
+    const dn = DIFFS[curDiff].name;
+    els.hitWord.textContent = hitText;
+    els.survTime.textContent = elapsed.toFixed(1);
+    els.bestLine.innerHTML = isNew
+      ? '<span class="newrec">🎉 ' + dn + ' 최고 기록 경신!</span> ' + best.toFixed(1) + "초"
+      : dn + " 최고 기록 " + best.toFixed(1) + "초";
+    els.resultBox.style.display = "block";
+    setTimeout(() => { if (state === "dead") els.overlay.classList.add("show"); }, 450);
+  }
+
+  function spawnInterval() {
+    return Math.max(0.35, 1.6 - elapsed * 0.035) * DIFFS[curDiff].spawnMul;
+  }
+
+  function updateDust(dt) {
+    for (const d of dust) {
+      d.x += d.vx * dt;
+      d.y += d.vy * dt;
+      d.tw += dt * 2;
+      if (d.y - d.r > H) { d.y = -d.r; d.x = Math.random() * W; }
+      if (d.x < -d.r) d.x = W + d.r;
+      else if (d.x > W + d.r) d.x = -d.r;
+    }
+  }
+
+  function updateParticles(dt) {
+    const damp = Math.pow(0.86, dt * 60);
+    for (let i = particles.length - 1; i >= 0; i--) {
+      const p = particles[i];
+      p.x += p.vx * dt;
+      p.y += p.vy * dt;
+      p.vx *= damp;
+      p.vy *= damp;
+      p.life -= dt;
+      if (p.life <= 0) particles.splice(i, 1);
+    }
+  }
+
+  function bounce(o) {
+    const hw = o.w / 2, hh = o.h / 2;
+    if (o.x - hw < 0) { o.x = hw; o.vx = Math.abs(o.vx); }
+    else if (o.x + hw > W) { o.x = W - hw; o.vx = -Math.abs(o.vx); }
+    if (o.y - hh < 0) { o.y = hh; o.vy = Math.abs(o.vy); }
+    else if (o.y + hh > H) { o.y = H - hh; o.vy = -Math.abs(o.vy); }
+  }
+
+  function hitsPlayer(o) {
+    const hw = o.w / 2, hh = o.h / 2;
+    const nx = Math.max(o.x - hw, Math.min(player.x, o.x + hw));
+    const ny = Math.max(o.y - hh, Math.min(player.y, o.y + hh));
+    const dx = player.x - nx, dy = player.y - ny;
+    return dx * dx + dy * dy <= player.r * player.r;
+  }
+
+  function update(dt) {
+    elapsed += dt;
+
+    // 무적 종료 체크
+    if (invActive && elapsed >= invEndsAt) invActive = false;
+
+    // 플레이어 추적 + 트레일
+    player.x += (player.tx - player.x) * Math.min(1, dt * 18);
+    player.y += (player.ty - player.y) * Math.min(1, dt * 18);
+    trail.push({ x: player.x, y: player.y });
+    if (trail.length > 14) trail.shift();
+
+    // 위험 단어 스폰
+    spawnTimer += dt;
+    while (spawnTimer >= spawnInterval()) {
+      spawnTimer -= spawnInterval();
+      spawnWord();
+    }
+
+    // 좋은 단어 스폰 (최대 2개, 약 7초마다)
+    goodSpawnTimer += dt;
+    if (goodSpawnTimer >= 7 && goodWords.length < 2) {
+      goodSpawnTimer = 0;
+      spawnGoodWord();
+    }
+
+    // 연출용 단어 팝
+    popTimer += dt;
+    if (popTimer >= 0.7 && words.length > 0) {
+      popTimer = 0;
+      const idx = (Math.random() * words.length) | 0;
+      const wd = words[idx];
+      burst(wd.x, wd.y, wd.color, 16, 200);
+      words.splice(idx, 1);
+      spawnWord();
+    }
+
+    // 위험 단어 이동 + 벽 튕김
+    for (const word of words) {
+      word.x += word.vx * dt;
+      word.y += word.vy * dt;
+      bounce(word);
+    }
+    // 좋은 단어 이동 + 벽 튕김
+    for (const g of goodWords) {
+      g.x += g.vx * dt;
+      g.y += g.vy * dt;
+      bounce(g);
+    }
+
+    // 좋은 단어 충돌 → 딩 + 무적
+    for (let i = goodWords.length - 1; i >= 0; i--) {
+      const g = goodWords[i];
+      if (hitsPlayer(g)) {
+        burst(g.x, g.y, "#6cff9e", 22, 230);
+        goodWords.splice(i, 1);
+        playDing();        // ★ 먹는 순간 딩
+        triggerInvuln();   // ★ 무적 발동음 포함
+      }
+    }
+
+    // 위험 단어 충돌 → 무적이면 무시, 아니면 게임오버
+    for (const word of words) {
+      if (hitsPlayer(word)) {
+        if (invActive) continue;
+        gameOver(word.text);
+        return;
+      }
+    }
+  }
+
+  function drawBackground() {
+    ctx.fillStyle = bgGrad;
+    ctx.fillRect(0, 0, W, H);
+    for (const d of dust) {
+      const tw = 0.6 + 0.4 * Math.sin(d.tw);
+      ctx.beginPath();
+      ctx.arc(d.x, d.y, d.r, 0, Math.PI * 2);
+      ctx.fillStyle = "rgba(" + d.hue + "," + (d.a * tw).toFixed(3) + ")";
+      ctx.fill();
+    }
+  }
+
+  function drawParticles() {
+    for (const p of particles) {
+      const t = p.life / p.maxLife;
+      const rgb = hexToRgb(p.color);
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.size * (0.4 + t * 0.6), 0, Math.PI * 2);
+      ctx.fillStyle = "rgba(" + rgb + "," + t.toFixed(3) + ")";
+      ctx.shadowColor = p.color;
+      ctx.shadowBlur = 10;
+      ctx.fill();
+    }
+    ctx.shadowBlur = 0;
+  }
+
+  function drawWords() {
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    for (const word of words) {
+      ctx.font = "700 " + word.fontSize + "px " + FONT_FAMILY;
+      ctx.shadowColor = word.color;
+      ctx.shadowBlur = 14;
+      ctx.fillStyle = word.color;
+      ctx.fillText(word.text, word.x, word.y);
+    }
+    ctx.shadowBlur = 0;
+  }
+
+  function drawGoodWords() {
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    for (const g of goodWords) {
+      const hw = g.w / 2, hh = g.h / 2;
+      ctx.shadowColor = "#37ff9a";
+      ctx.shadowBlur = 20;
+      roundRect(g.x - hw, g.y - hh, g.w, g.h, hh);
+      ctx.fillStyle = "rgba(18,72,46,0.92)";
+      ctx.fill();
+      ctx.shadowBlur = 0;
+      ctx.lineWidth = 2.5;
+      ctx.strokeStyle = "#6cff9e";
+      ctx.stroke();
+      ctx.font = "800 " + g.fontSize + "px " + FONT_FAMILY;
+      ctx.shadowColor = "#37ff9a";
+      ctx.shadowBlur = 8;
+      ctx.fillStyle = "#eafff2";
+      ctx.fillText(g.text, g.x, g.y);
+      ctx.shadowBlur = 0;
+    }
+  }
+
+  function drawPlayer() {
+    // 무적 보호막 (무지개 링) — 본체 뒤
+    if (invActive) {
+      const remaining = invEndsAt - elapsed;
+      const ending = remaining <= 1;
+      const blinkOff = ending && Math.sin(elapsed * 30) < -0.2;
+      if (!blinkOff) {
+        const baseHue = (elapsed * 240) % 360;
+        const pulse = 0.5 + 0.5 * Math.sin(elapsed * 8);
+        const auraR = player.r + 24 + pulse * 10;
+        ctx.save();
+        ctx.lineWidth = 6;
+        ctx.shadowBlur = 28;
+        for (let k = 0; k < 6; k++) {
+          const hue = (baseHue + k * 60) % 360;
+          const col = "hsl(" + hue + ",100%,60%)";
+          ctx.strokeStyle = col;
+          ctx.shadowColor = col;
+          ctx.beginPath();
+          ctx.arc(player.x, player.y, auraR, (k / 6) * Math.PI * 2, (k / 6 + 1 / 6) * Math.PI * 2);
+          ctx.stroke();
+        }
+        ctx.restore();
+      }
+    }
+
+    // 잔상
+    const trailRGB = invActive ? "255,255,255" : "127,209,255";
+    for (let i = 0; i < trail.length; i++) {
+      const t = (i + 1) / trail.length;
+      const seg = trail[i];
+      ctx.beginPath();
+      ctx.arc(seg.x, seg.y, player.r * (0.3 + t * 0.7), 0, Math.PI * 2);
+      ctx.fillStyle = "rgba(" + trailRGB + "," + (t * 0.28).toFixed(3) + ")";
+      ctx.fill();
+    }
+    // 본체
+    ctx.shadowColor = invActive ? "#ffffff" : "#7fd1ff";
+    ctx.shadowBlur = invActive ? 30 : 24;
+    ctx.beginPath();
+    ctx.arc(player.x, player.y, player.r, 0, Math.PI * 2);
+    ctx.fillStyle = "#bfeaff";
+    ctx.fill();
+    ctx.shadowBlur = 0;
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = "#ffffff";
+    ctx.stroke();
+  }
+
+  function render() {
+    let ox = 0, oy = 0;
+    if (shake > 0.2) {
+      ox = (Math.random() - 0.5) * shake;
+      oy = (Math.random() - 0.5) * shake;
+    }
+    ctx.save();
+    ctx.translate(ox, oy);
+    drawBackground();
+    drawWords();
+    drawGoodWords();
+    drawParticles();
+    if (state !== "dead") drawPlayer();
+    ctx.restore();
+
+    els.time.textContent = elapsed.toFixed(1);
+    els.count.textContent = words.length;
+
+    if (invActive) {
+      els.invMsg.classList.add("show");
+      els.invMsg.classList.toggle("ending", (invEndsAt - elapsed) <= 1);
+    } else {
+      els.invMsg.classList.remove("show", "ending");
+    }
+  }
+
+  function loop(now) {
+    let dt = (now - lastTime) / 1000;
+    lastTime = now;
+    if (dt > 0.05) dt = 0.05;
+
+    updateDust(dt);
+    updateParticles(dt);
+    shake *= Math.pow(0.86, dt * 60);
+
+    if (state === "playing") update(dt);
+
+    render();
+    requestAnimationFrame(loop);
+  }
+
+  // 난이도 버튼 → 시작 (클릭이 오디오 잠금 해제 제스처가 됨)
+  document.querySelectorAll(".diffBtn").forEach((b) => {
+    b.addEventListener("click", () => start(b.dataset.diff));
+  });
+
+  // 음소거 토글
+  els.muteBtn.addEventListener("click", toggleMute);
+
+  // 초기화 후 영구 루프 시작
+  resize();
+  els.diffVal.textContent = DIFFS[curDiff].name;
+  player.x = player.tx = W / 2;
+  player.y = player.ty = H / 2;
+  requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>
