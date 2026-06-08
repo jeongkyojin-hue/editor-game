@@ -4,6 +4,15 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <title>나는 편집기자다</title>
+<meta name="theme-color" content="#0a0d14">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="편집기자">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+<link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
+<link rel="apple-touch-icon" href="icon-192.png">
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
   html, body {
@@ -123,8 +132,8 @@
     color: #fff;
     transition: transform .12s ease, box-shadow .2s ease, background .2s ease;
   }
-  .diffBtn .dname { font-size: 26px; font-weight: 800; letter-spacing: 1px; }
-  .diffBtn .ddesc { font-size: 13px; font-weight: 600; opacity: 0.9; }
+  .diffBtn .dname { font-size: 26px; font-weight: 800; letter-spacing: 1px; white-space: nowrap; }
+  .diffBtn .ddesc { font-size: 13px; font-weight: 600; opacity: 0.9; white-space: nowrap; }
   .diffBtn:hover { transform: translateY(-5px) scale(1.05); }
   .diffBtn:active { transform: translateY(-1px) scale(1.0); }
 
@@ -197,6 +206,41 @@
   #muteBtn:hover, #bgmBtn:hover { transform: scale(1.08); box-shadow: 0 0 22px rgba(80,180,255,0.6); }
   #muteBtn:active, #bgmBtn:active { transform: scale(1.0); }
   #bgmBtn.off { opacity: 0.4; border-color: rgba(127,209,255,0.25); box-shadow: none; }
+
+  /* ===== 모바일(좁은 화면) 대응 ===== */
+  @media (max-width: 640px) {
+    #hud { font-size: 12px; padding: 10px 12px; flex-wrap: wrap; gap: 4px 14px; justify-content: center; }
+    #overlay { padding: 18px; }
+    #overlay h1 { font-size: 26px; letter-spacing: 1px; margin-bottom: 6px; }
+    #overlay .sub { font-size: 13px; margin-bottom: 18px; }
+    #overlay .result { font-size: 18px; }
+    #overlay .bestline { font-size: 14px; margin-bottom: 20px; }
+    .picklabel { font-size: 14px; margin-bottom: 14px; }
+    /* 난이도 버튼: 세로로 쌓고, 가로로 넓게 → 글자가 한 줄로 여유있게 */
+    #diffButtons { flex-direction: column; gap: 12px; width: 100%; max-width: 340px; }
+    .diffBtn {
+      flex-direction: row;
+      justify-content: center;
+      gap: 10px;
+      width: 100%;
+      min-width: 0;
+      padding: 16px 18px;
+      white-space: nowrap;
+    }
+    .diffBtn .dname { font-size: 21px; }
+    .diffBtn .ddesc { font-size: 12px; }
+    #invMsg { font-size: 54px; letter-spacing: 2px; }
+    /* 소리 버튼: 손가락 터치 타깃 더 크게 */
+    #muteBtn, #bgmBtn { width: 54px; height: 54px; font-size: 23px; bottom: 14px; }
+    #muteBtn { right: 14px; }
+    #bgmBtn  { right: 80px; }
+  }
+  /* 아주 좁은 화면(소형 폰) 추가 축소 */
+  @media (max-width: 380px) {
+    #overlay h1 { font-size: 23px; }
+    .diffBtn .dname { font-size: 19px; }
+    #invMsg { font-size: 46px; }
+  }
 </style>
 </head>
 <body>
@@ -959,6 +1003,17 @@
   player.y = player.ty = H / 2;
   requestAnimationFrame(loop);
 })();
+</script>
+
+<!-- PWA: service worker 등록 -->
+<script>
+  if ("serviceWorker" in navigator) {
+    window.addEventListener("load", function () {
+      navigator.serviceWorker.register("sw.js")
+        .then(function () { console.log("[PWA] service worker 등록 완료"); })
+        .catch(function (err) { console.warn("[PWA] service worker 등록 실패:", err); });
+    });
+  }
 </script>
 </body>
 </html>
