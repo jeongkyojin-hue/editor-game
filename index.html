@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <title>나는 편집기자다</title>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -12,7 +12,14 @@
     overflow: hidden;
     font-family: "Malgun Gothic", "맑은 고딕", "Apple SD Gothic Neo",
                  "Noto Sans KR", "Nanum Gothic", sans-serif;
+    /* 모바일: 터치 스크롤/줌/선택/탭 하이라이트 차단 */
+    touch-action: none;
+    overscroll-behavior: none;
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
   }
+  button { touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
   #wrap {
     position: relative;
     width: 100vw;
