@@ -55,6 +55,7 @@
     pointer-events: none;
     text-shadow: 0 0 8px rgba(80,180,255,0.55), 0 1px 3px rgba(0,0,0,0.9);
   }
+  #hud .item { white-space: nowrap; }
   #hud .item b { color: #ffd24a; font-weight: 700; text-shadow: 0 0 10px rgba(255,210,74,0.65); }
   #best { color: #7fd1ff; }
 
@@ -71,6 +72,7 @@
     text-align: center;
     padding: 24px;
     backdrop-filter: blur(3px);
+    word-break: keep-all;
     opacity: 0;
     pointer-events: none;
     transition: opacity 0.6s ease;
