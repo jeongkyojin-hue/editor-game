@@ -410,9 +410,13 @@
     els.bgmBtn.classList.toggle("off", !bgmOn);
   }
 
-  // ----- 배경음악 (아주 단순: setInterval로 0.4초마다 음 하나씩 반복) -----
+  // ----- 배경음악 (게임 루프 기반: 0.4초마다 음 하나씩 반복) -----
+  // setInterval 대신 루프에서 시간을 재서 재생 → 모바일에서 몰아 실행/렉으로 인한
+  // 입력 먹통(터치 버퍼링) 방지
   const BGM_NOTES = [220.00, 277.18, 329.63, 440.00, 329.63, 277.18]; // A3 C#4 E4 A4 …
-  let bgmTimer = null;
+  let bgmPlaying = false;
+  let bgmNextAt = 0;        // 다음 음을 재생할 elapsed 시각(초)
+  const BGM_INTERVAL = 0.4; // 0.4초 간격
   let bgmIdx = 0;
 
   function bgmBeep() {
@@ -434,18 +438,25 @@
   }
 
   function startBgm() {
-    console.log("[BGM] startBgm() 호출됨 — 0.4초마다 음 재생 시작");
     getCtx();
     // 이전 게임오버 페이드아웃으로 0이 된 볼륨 복구
     if (bgmGain && audioCtx) bgmGain.gain.setValueAtTime(bgmOn ? BGM_VOL : 0, audioCtx.currentTime);
-    if (bgmTimer) clearInterval(bgmTimer);
     bgmIdx = 0;
-    bgmBeep();                            // 즉시 첫 음
-    bgmTimer = setInterval(bgmBeep, 400); // 0.4초마다 반복
+    bgmPlaying = true;
+    bgmNextAt = 0;   // update 루프에서 elapsed 기준으로 즉시 첫 음 재생
   }
 
   function stopBgm() {
-    if (bgmTimer) { clearInterval(bgmTimer); bgmTimer = null; }
+    bgmPlaying = false;
+  }
+
+  // 게임 루프에서 호출: elapsed(초) 기준으로 BGM 음을 트리거
+  function updateBgm() {
+    if (!bgmPlaying) return;
+    if (elapsed >= bgmNextAt) {
+      bgmBeep();
+      bgmNextAt = elapsed + BGM_INTERVAL;
+    }
   }
 
   // 배경음악을 부드럽게 잦아들게 한 뒤 정지
@@ -540,16 +551,22 @@
   canvas.addEventListener("touchmove", (e) => {
     e.preventDefault();
     const t = e.touches[0];
+    if (!t) return;
     const rect = canvas.getBoundingClientRect();
     setTarget(t.clientX - rect.left, t.clientY - rect.top);
   }, { passive: false });
   canvas.addEventListener("touchstart", (e) => {
+    e.preventDefault();
     const t = e.touches[0];
+    if (!t) return;
     const rect = canvas.getBoundingClientRect();
     setTarget(t.clientX - rect.left, t.clientY - rect.top);
     player.x = player.tx; player.y = player.ty;
     trail = [];
   }, { passive: false });
+  // 터치가 끊겨도(전화·알림 등) 목표 좌표는 마지막 위치 유지 → 입력 복귀 시 부드럽게
+  canvas.addEventListener("touchend", (e) => { e.preventDefault(); }, { passive: false });
+  canvas.addEventListener("touchcancel", (e) => { e.preventDefault(); }, { passive: false });
 
   // 위험 단어
   let words = [];
@@ -770,6 +787,9 @@
   function update(dt) {
     elapsed += dt;
 
+    // 배경음악 (루프 기반 타이밍)
+    updateBgm();
+
     // 무적 종료 체크
     if (invActive && elapsed >= invEndsAt) invActive = false;
 
@@ -851,30 +871,27 @@
   }
 
   function drawParticles() {
+    // shadowBlur 제거: 모바일 성능 최적화(입력 먹통 방지). 색만으로 충분히 밝게 보임.
     for (const p of particles) {
       const t = p.life / p.maxLife;
       const rgb = hexToRgb(p.color);
       ctx.beginPath();
       ctx.arc(p.x, p.y, p.size * (0.4 + t * 0.6), 0, Math.PI * 2);
       ctx.fillStyle = "rgba(" + rgb + "," + t.toFixed(3) + ")";
-      ctx.shadowColor = p.color;
-      ctx.shadowBlur = 10;
       ctx.fill();
     }
-    ctx.shadowBlur = 0;
   }
 
   function drawWords() {
+    // shadowBlur 제거: 위험 단어는 화면에 가장 많이 그려지는 요소라
+    // 매 프레임 그림자 처리 시 저사양 폰에서 렉→입력 먹통 발생. 색만으로도 선명함.
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
     for (const word of words) {
       ctx.font = "700 " + word.fontSize + "px " + FONT_FAMILY;
-      ctx.shadowColor = word.color;
-      ctx.shadowBlur = 14;
       ctx.fillStyle = word.color;
       ctx.fillText(word.text, word.x, word.y);
     }
-    ctx.shadowBlur = 0;
   }
 
   function drawGoodWords() {
@@ -912,12 +929,11 @@
         const auraR = player.r + 24 + pulse * 10;
         ctx.save();
         ctx.lineWidth = 6;
-        ctx.shadowBlur = 28;
+        // shadowBlur 없이 아크만 — 무지개 링은 색만으로도 충분히 화려하고 훨씬 가벼움
         for (let k = 0; k < 6; k++) {
           const hue = (baseHue + k * 60) % 360;
           const col = "hsl(" + hue + ",100%,60%)";
           ctx.strokeStyle = col;
-          ctx.shadowColor = col;
           ctx.beginPath();
           ctx.arc(player.x, player.y, auraR, (k / 6) * Math.PI * 2, (k / 6 + 1 / 6) * Math.PI * 2);
           ctx.stroke();
@@ -974,6 +990,14 @@
       els.invMsg.classList.remove("show", "ending");
     }
   }
+
+  // 탭이 백그라운드 갔다 돌아오면 시간 점프로 dt가 튀는 것을 방지
+  document.addEventListener("visibilitychange", () => {
+    if (!document.hidden) {
+      lastTime = performance.now();      // dt 리셋
+      bgmNextAt = elapsed;               // 복귀 즉시 BGM 재개
+    }
+  });
 
   function loop(now) {
     let dt = (now - lastTime) / 1000;
