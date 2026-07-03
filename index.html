@@ -714,6 +714,7 @@
     els.diffVal.textContent = DIFFS[curDiff].name;
     reset();
     state = "playing";
+    lastTime = performance.now(); // 시작 직후 첫 프레임 dt 튐 방지(초반 순간 렉/순간이동 방지)
     els.overlay.classList.remove("show");
   }
 
@@ -1016,6 +1017,10 @@
 
   // 난이도 버튼 → 시작 (클릭이 오디오 잠금 해제 제스처가 됨)
   document.querySelectorAll(".diffBtn").forEach((b) => {
+    // 버튼에 손이 닿는 순간(터치다운) 오디오를 미리 깨워둠 → 시작 순간 부하 분산(초반 버퍼링 완화)
+    const warm = () => { try { getCtx(); } catch (e) {} };
+    b.addEventListener("pointerdown", warm);
+    b.addEventListener("touchstart", warm, { passive: true });
     b.addEventListener("click", () => start(b.dataset.diff));
   });
 
